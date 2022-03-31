@@ -1,0 +1,94 @@
+{
+  "affected": {
+    "defaultBase": "main"
+  },
+  "cli": {
+    "cache": {
+      "enabled": true,
+      "environment": "all",
+      "path": ".angular/cache"
+    },
+    "defaultCollection": "@nrwl/angular",
+    "warnings": {
+      "versionMismatch": false
+    }
+  },
+  "defaultProject": "client",
+  "generators": {
+    "@nrwl/angular:application": {
+      "e2eTestRunner": "cypress",
+      "linter": "eslint",
+      "style": "scss",
+      "unitTestRunner": "jest"
+    },
+    "@nrwl/angular:component": {
+      "changeDetection": "OnPush",
+      "inlineStyle": false,
+      "inlineTemplate": false,
+      "style": "scss"
+    },
+    "@nrwl/angular:library": {
+      "linter": "eslint",
+      "unitTestRunner": "jest"
+    },
+    "@nrwl/schematics:application": {
+      "framework": "angular",
+      "style": "scss",
+      "unitTestRunner": "jest"
+    },
+    "@nrwl/schematics:library": {
+      "style": "scss",
+      "unitTestRunner": "jest"
+    },
+    "@nrwl/web:application": {
+      "e2eTestRunner": "cypress",
+      "linter": "eslint",
+      "style": "scss",
+      "unitTestRunner": "jest"
+    },
+    "@nrwl/web:library": {
+      "linter": "eslint",
+      "style": "scss",
+      "unitTestRunner": "jest"
+    }
+  },
+  "implicitDependencies": {
+    ".eslintrc.angular.js": "*",
+    ".eslintrc.cypress.js": "*",
+    ".eslintrc.js": "*",
+    ".eslintrc.module-boundaries.js": "*",
+    "angular.json": "*",
+    "nx.json": "*",
+    "package.json": {
+      "dependencies": "*",
+      "devDependencies": "*",
+      "engines": "*"
+    },
+    "tsconfig.base.json": "*"
+  },
+  "newProjectRoot": "",
+  "npmScope": "app",
+  "targetDependencies": {
+    "build": [
+      {
+        "projects": "dependencies",
+        "target": "build"
+      }
+    ]
+  },
+  "tasksRunnerOptions": {
+    "default": {
+      "options": {
+        "cacheDirectory": "/tmp/nx/nx-ng-starter",
+        "cacheableOperations": ["build", "lint", "test", "e2e", "build-storybook"],
+        "parallel": 1,
+        "runtimeCacheInputs": ["node -v", "echo $IMPORTANT_ENV_VAR"]
+      },
+      "runner": "@nrwl/workspace/tasks-runners/default"
+    }
+  },
+  "workspaceLayout": {
+    "appsDir": "apps",
+    "libsDir": "libs"
+  }
+}

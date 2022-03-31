@@ -1,0 +1,134 @@
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: pr-validation
+
+on:
+  pull_request:
+    branches: [main]
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.head_ref }}.${{ github.sha }}.pr-validation
+  cancel-in-progress: true
+
+jobs:
+  premerge:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [16.x]
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            nx:
+              - '.github/workflows/pr-validation.yml'
+              - 'apps/**'
+              - 'libs/**'
+              - 'tools/generators/**'
+              - 'tools/ts/**'
+              - 'tools/*.json'
+              - 'tsconfig*'
+              - 'nx.json'
+              - 'angular.json'
+              - 'babel.config.json'
+              - 'jest*'
+              - '.eslint*'
+              - '.prettier*'
+              - '.protolint.yaml'
+              - '.stylelint*'
+            dependencies:
+              - 'package.json'
+              - 'yarn.lock'
+              - 'functions/package.json'
+              - 'functions/package-lock.json'
+            electron:
+              - '.electron/**'
+              - 'index.js'
+            mobile:
+              - 'android/**'
+              - 'capacitor.config.json'
+            shelltools:
+              - 'tools/shell/**'
+            storybook:
+              - '.storybook/**'
+              - '*.stories.ts'
+
+      - name: Don't save Bash session history
+        run: unset HISTFILE
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          check-latest: true
+
+      - name: Configure kernel (increase watchers)
+        run: echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+
+      - name: Use yarn 1.22.18 (required for integrity check)
+        run: npm i -g yarn@1.22.18 # this is mandatory, yarn v2 does not have integrity check which is needed for the pipeline
+
+      - name: Get variables (yarn cache directory, commit hash)
+        id: get-variables
+        run: echo "::set-output name=yarncachedir::$(yarn cache dir)"; echo "::set-output name=commitsha::$(echo ${GITHUB_SHA})"
+
+      - name: Workspace cache (npm, yarn, nx, jest)
+        uses: actions/cache@v2
+        id: workspace-cache # use this to check for `cache-hit` (`steps.workspace-cache.outputs.cache-hit != 'true'`)
+        env:
+          cache-name: workspace-cache
+        with:
+          path: |
+            ./node_modules
+            /tmp/nx
+            /tmp/jest_rs
+            ./angular
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-yarn-${{ hashFiles('**/yarn.lock') }}-workspace-${{ steps.get-variables.outputs.commitsha }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node-version }}-yarn-${{ hashFiles('**/yarn.lock') }}-workspace-
+            ${{ runner.os }}-node-${{ matrix.node-version }}-yarn-
+            ${{ runner.os }}-
+
+      - name: Workspace integrity check
+        if: ${{ (steps.changes.outputs.nx == 'true' || steps.changes.outputs.storybook == 'true' || steps.changes.outputs.electron == 'true') && steps.changes.outputs.dependencies == 'false' }}
+        run: yarn workspace:integrity-check
+
+      - name: Install project dependencies
+        if: ${{ steps.changes.outputs.nx == 'true' || steps.changes.outputs.storybook == 'true' || steps.changes.outputs.electron == 'true' }}
+        run: yarn install:ci
+
+      - name: Lint affected
+        if: ${{ steps.changes.outputs.nx == 'true' || steps.changes.outputs.dependencies == 'true' }}
+        run: npx nx affected --target=lint --base=origin/main --head=HEAD --parallel --max-parallel=2
+
+      - name: Lint shell
+        if: steps.changes.outputs.shelltools == 'true'
+        run: |
+          sudo apt install shellcheck
+          yarn lint:shell
+
+      - name: Unit test affected (with code coverage)
+        if: ${{ steps.changes.outputs.nx == 'true' || steps.changes.outputs.dependencies == 'true' }}
+        run: npx nx affected --target=test --base=origin/main --head=HEAD --pass-with-no-tests --code-coverage=true --watch=false --run-in-band --ci
+
+      - name: Build affected (development)
+        if: ${{ steps.changes.outputs.nx == 'true' || steps.changes.outputs.dependencies == 'true' }}
+        run: npx nx affected --target=build --base=origin/main --head=HEAD
+
+      - name: Build storybook
+        if: ${{ steps.changes.outputs.storybook == 'true' || steps.changes.outputs.dependencies == 'true' }}
+        run: npx nx run documentation:build-storybook
